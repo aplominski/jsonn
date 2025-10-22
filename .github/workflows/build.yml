@@ -36,10 +36,20 @@ jobs:
           choco install -y meson ninja
           refreshenv
         shell: pwsh
-      - name: Build project
+      # Build project - Linux / macOS
+      - name: Build project (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           meson setup build --buildtype release
           meson compile -C build
+        shell: bash
+
+      - name: Build project (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          C:\ProgramData\chocolatey\bin\meson.exe setup build --buildtype release
+          C:\ProgramData\chocolatey\bin\meson.exe compile -C build
+        shell: pwsh
 
       - name: Package artifacts
         run: |
