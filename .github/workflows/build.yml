@@ -16,18 +16,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install dependencies
+      # Install dependencies - Linux / macOS
+      - name: Install dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           if [[ "${{ runner.os }}" == "Linux" ]]; then
-            sudo apt update
-            sudo apt install -y ninja-build meson gcc g++
+            sudo DEBIAN_FRONTEND=noninteractive apt update
+            sudo DEBIAN_FRONTEND=noninteractive apt install -y ninja-build meson gcc g++
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
             brew update
             brew install ninja meson
-          elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            choco install meson ninja
           fi
+        shell: bash
 
+      # Install dependencies - Windows
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install -y meson ninja
+        shell: pwsh
       - name: Build project
         run: |
           meson setup build --buildtype release
