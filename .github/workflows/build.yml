@@ -11,14 +11,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Install dependencies - Linux / macOS
-      - name: Install dependencies (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: Install dependencies 
         run: |
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             sudo DEBIAN_FRONTEND=noninteractive apt update
@@ -29,27 +27,12 @@ jobs:
           fi
         shell: bash
 
-      # Install dependencies - Windows
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install -y meson ninja
-          refreshenv
-        shell: pwsh
-      # Build project - Linux / macOS
-      - name: Build project (Linux/macOS)
-        if: runner.os != 'Windows'
+      # Build project 
+      - name: Build project
         run: |
           meson setup build --buildtype release
           meson compile -C build
         shell: bash
-
-      - name: Build project (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          C:\ProgramData\chocolatey\bin\meson.exe setup build --buildtype release
-          C:\ProgramData\chocolatey\bin\meson.exe compile -C build
-        shell: pwsh
 
       - name: Package artifacts
         run: |
@@ -59,8 +42,6 @@ jobs:
             cp build/libjsonn.so artifacts/
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
             cp build/libjsonn.dylib artifacts/
-          elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp build/jsonn.dll artifacts/
           fi
 
       - name: Upload build artifacts
