@@ -81,7 +81,9 @@ struct Value {
     std::optional<double> try_get_number() const { return is_number() ? std::make_optional(as_number()) : std::nullopt; }
     std::optional<std::string> try_get_string() const { return is_string() ? std::make_optional(as_string()) : std::nullopt; }
     std::optional<bool> try_get_bool() const { return is_bool() ? std::make_optional(as_bool()) : std::nullopt; }
-
+    std::optional<Array> try_get_array() const { return is_array() ? std::make_optional(as_array()) : std::nullopt; }
+    std::optional<Object> try_get_object() const { return is_object() ? std::make_optional(as_object()) : std::nullopt; }
+    
         // Operators for objects
     Value& operator[](const std::string& key) {
         if (!is_object()) {
