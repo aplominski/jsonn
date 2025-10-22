@@ -2,9 +2,8 @@ name: Build and publish as release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'  # Trigger only on version tags like v1.0.0
-
+    branches:
+      - master
 jobs:
   build:
     runs-on: ${{ matrix.os }}
