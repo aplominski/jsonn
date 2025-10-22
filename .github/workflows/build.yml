@@ -1,13 +1,12 @@
 name: Build and publish as release
 
-# Trigger on pushes to master or manual dispatch
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
   workflow_dispatch:
 
 jobs:
-  # Matrix build on multiple OSes
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -17,8 +16,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Install dependencies per-OS
-      - name: Install dependencies (Linux / macOS)
+      - name: Install dependencies
         run: |
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             sudo apt update
@@ -26,52 +24,33 @@ jobs:
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
             brew update
             brew install ninja meson
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            choco install meson ninja
           fi
-        shell: bash
-        if: runner.os != 'Windows'
 
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install -y meson ninja
-        shell: pwsh
-
-      # Build with Meson
-      - name: Configure and build with Meson
+      - name: Build project
         run: |
           meson setup build --buildtype release
           meson compile -C build
-        shell: bash
 
-      # Package per-runner artifacts into artifacts/ directory
-      - name: Package artifacts (Linux / macOS)
+      - name: Package artifacts
         run: |
           mkdir -p artifacts
-          cp -r include artifacts/ || true
+          cp -r include artifacts/
           if [[ "${{ runner.os }}" == "Linux" ]]; then
-            find build -maxdepth 2 -type f -name "libjsonn*.so" -exec cp -v {} artifacts/ \; || true
+            cp build/libjsonn.so artifacts/
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            find build -maxdepth 2 -type f -name "libjsonn*.dylib" -exec cp -v {} artifacts/ \; || true
+            cp build/libjsonn.dylib artifacts/
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp build/jsonn.dll artifacts/
           fi
-        shell: bash
-        if: runner.os != 'Windows'
 
-      - name: Package artifacts (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-          Copy-Item -Recurse -Force include artifacts\ || Write-Output "no include to copy"
-          Get-ChildItem -Path build -Recurse -Filter "jsonn*.dll" | ForEach-Object { Copy-Item $_.FullName -Destination artifacts\ -Force }
-        shell: pwsh
-
-      # Upload artifacts from each runner to Actions storage
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: jsonn-${{ matrix.os }}
           path: artifacts
 
-  # Release job
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -79,43 +58,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Download all artifacts
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: List downloaded artifacts (debug)
-        run: ls -R artifacts
-
-      # Pack all artifacts into a single tar.gz
-      - name: Create release archive
-        run: |
-          ARCHIVE=jsonn-${{ github.run_number }}.tar.gz
-          tar -czf "${ARCHIVE}" -C artifacts .
-          echo "archive=${ARCHIVE}" >> $GITHUB_OUTPUT
-        shell: bash
-
-      # Create GitHub Release
       - name: Create GitHub Release
-        id: create_release
         uses: actions/create-release@v1
         with:
-          tag_name: jsonn-${{ github.run_number }}
-          release_name: jsonn-${{ github.run_number }}
-          body: Automated release for run ${{ github.run_number }}
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body: "Automated release of jsonn"
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Upload the archive as release asset
-      - name: Upload release asset
+      - name: Upload release assets
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./jsonn-${{ github.run_number }}.tar.gz
-          asset_name: jsonn-${{ github.run_number }}.tar.gz
+          asset_path: ./artifacts/jsonn-${{ matrix.os }}.tar.gz
+          asset_name: jsonn-${{ matrix.os }}.tar.gz
           asset_content_type: application/gzip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
