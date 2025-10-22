@@ -64,15 +64,17 @@ struct Value {
     bool is_object() const { return std::holds_alternative<Object>(data); }
     bool is_array()  const { return std::holds_alternative<Array>(data); }
     bool is_string() const { return std::holds_alternative<std::string>(data); }
-    bool is_number() const { return std::holds_alternative<double>(data); }
-    bool is_bool()   const { return std::holds_alternative<bool>(data); }
+    bool is_number() const { return std::holds_alternative<int>(data) || std::holds_alternative<double>(data); }    bool is_bool()   const { return std::holds_alternative<bool>(data); }
     bool is_null()   const { return std::holds_alternative<std::nullptr_t>(data); }
 
     // Getters
     const Array& as_array() const { return std::get<Array>(data); }
     const Object& as_object() const { return std::get<Object>(data); }
     const std::string& as_string() const { return std::get<std::string>(data); }
-    double as_number() const { return std::get<double>(data); }
+    double as_number() const {
+        if (std::holds_alternative<int>(data)) return static_cast<double>(std::get<int>(data));
+        return std::get<double>(data);
+    }
     bool as_bool() const { return std::get<bool>(data); }
 
     // Safe getters
