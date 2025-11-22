@@ -6,7 +6,7 @@ Minimalist and fast JSON library for C++
 
 ## Overview
 
-`jsonn` is a lightweight and easy-to-use JSON library for C++. It provides a simple API while keeping performance and type safety in mind.
+`jsonn` is a lightweight and easy-to-use JSON/JSONL library for C++. It provides a simple API while keeping performance and type safety in mind.
 
 ---
 
@@ -18,6 +18,7 @@ Minimalist and fast JSON library for C++
 * Comparison: `operator==` for easy value comparison.
 * Header-only, no dependencies.
 * BSD 3-Clause License, permissive for commercial or open-source use.
+* Support load from JSONL and save to JSONL
 
 ---
 
@@ -28,6 +29,8 @@ Simply include the header in your project:
 ```cpp
 #include "jsonn.hpp"
 ```
+
+You must to install a shared/static lib. Shared library are builded for linux and macos.
 
 No additional dependencies required.
 

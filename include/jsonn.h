@@ -125,4 +125,7 @@ struct Value {
 __attribute__((visibility("default"))) std::string serialize(const Value& v);
 __attribute__((visibility("default"))) Value parse(const std::string& json);
 
+__attribute__((visibility("default"))) std::string serialize_jsonl(const std::vector<Value&> v);
+__attribute__((visibility("default"))) std::vector<Value> parse_jsonl(const std::string& json);
+
 } // namespace jsonn
