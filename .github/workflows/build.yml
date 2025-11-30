@@ -11,153 +11,81 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            name: linux
-            triplet: x86_64-linux-gnu
-          - os: macos-latest
-            name: macos
-          - os: ubuntu-latest
-            name: windows
-            triplet: x86_64-w64-mingw32
-            mingw_prefix: x86_64-w64-mingw32-
-
-    defaults:
-      run:
-        shell: bash
-
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          submodules: recursive
 
-      - name: Install dependencies (Linux & Windows cross)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies 
         run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt update
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y \
-            ninja-build meson gcc g++ \
-            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 binutils-mingw-w64-x86-64
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            sudo DEBIAN_FRONTEND=noninteractive apt update
+            sudo DEBIAN_FRONTEND=noninteractive apt install -y ninja-build meson gcc g++
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            brew update
+            brew install ninja meson
+          fi
+        shell: bash
 
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew update
-          brew install ninja meson
-
-      - name: Set up MinGW cross-compilation (Windows job)
-        if: matrix.name == 'windows'
-        run: |
-          echo "CC=${{ matrix.mingw_prefix }}gcc" >> $GITHUB_ENV
-          echo "CXX=${{ matrix.mingw_prefix }}g++" >> $GITHUB_ENV
-          echo "AR=${{ matrix.mingw_prefix }}ar" >> $GITHUB_ENV
-          echo "STRIP=${{ matrix.mingw_prefix }}strip" >> $GITHUB_ENV
-
+      # Build project 
       - name: Build project
         run: |
-          if [[ "${{ matrix.name }}" == "windows" ]]; then
-            meson setup build \
-              --cross-file <(cat <<EOF
-            [binaries]
-            c = '${{ matrix.mingw_prefix }}gcc'
-            cpp = '${{ matrix.mingw_prefix }}g++'
-            ar = '${{ matrix.mingw_prefix }}ar'
-            strip = '${{ matrix.mingw_prefix }}strip'
-            
-            [host_machine]
-            system = 'windows'
-            cpu_family = 'x86_64'
-            cpu = 'x86_64'
-            endian = 'little'
-            EOF
-            ) --buildtype release
-          else
-            meson setup build --buildtype release
-          fi
-          
+          meson setup build --buildtype release
           meson compile -C build
+        shell: bash
 
-      - name: Prepare artifacts
+      - name: Package artifacts
         run: |
-          mkdir -p artifacts/bin artifacts/include
-          cp -r include/* artifacts/include/
-
-          if [[ "${{ matrix.name }}" == "linux" ]]; then
-            cp build/libjsonn.so artifacts/bin/
-          elif [[ "${{ matrix.name }}" == "macos" ]]; then
-            cp build/libjsonn.dylib artifacts/bin/
-          elif [[ "${{ matrix.name }}" == "windows" ]]; then
-            cp build/libjsonn.dll artifacts/bin/
-            # Opcjonalnie też statyczna biblioteka
-            # cp build/libjsonn.a artifacts/bin/
+          mkdir -p artifacts
+          cp -r include artifacts/
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            cp build/libjsonn.so artifacts/
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            cp build/libjsonn.dylib artifacts/
           fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: jsonn-${{ matrix.name }}
-          path: artifacts/
+          name: jsonn-${{ matrix.os }}
+          path: artifacts
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Download all build artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          path: downloaded-artifacts
-
-      - name: Prepare final release structure
-        run: |
-          mkdir -p release/include release/bin/{linux,macos,windows}
-
-          # Kopiujemy include (jednolity dla wszystkich platform)
-          cp -r downloaded-artifacts/jsonn-linux/include/* release/include/ 2>/dev/null || true
-
-          # Binaria per platforma
-          cp downloaded-artifacts/jsonn-linux/bin/*      release/bin/linux/    2>/dev/null || true
-          cp downloaded-artifacts/jsonn-macos/bin/*      release/bin/macos/    2>/dev/null || true
-          cp downloaded-artifacts/jsonn-windows/bin/*    release/bin/windows/  2>/dev/null || true
-
-          # Opcjonalnie: pokaż strukturę
-          echo "Final release structure:"
-          tree release || find release -type f | sort
+          path: artifacts
 
       - name: Create release archive
         run: |
-          tar -czf jsonn-${{ github.run_number }}.tar.gz -C release .
+          mkdir -p release
+          tar -czf release/jsonn-${{ github.run_number }}.tar.gz -C artifacts .
+        shell: bash
 
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ github.run_number }}
-          release_name: jsonn v${{ github.run_number }}
-          body: |
-            Automated multi-platform release of jsonn
-
-            Contains prebuilt binaries for:
-            - Linux (x86_64)
-            - macOS (x86_64 + arm64 if built on macos-latest)
-            - Windows (x86_64, MinGW-w64)
-
-            Structure:
+          tag_name: jsonn-${{ github.run_number }}
+          release_name: jsonn-${{ github.run_number }}
+          body: "Automated release of jsonn"
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: jsonn-${{ github.run_number }}.tar.gz
-          asset_name: jsonn-v${{ github.run_number }}-multiplatform.tar.gz
+          asset_path: ./release/jsonn-${{ github.run_number }}.tar.gz
+          asset_name: jsonn-${{ github.run_number }}.tar.gz
           asset_content_type: application/gzip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
